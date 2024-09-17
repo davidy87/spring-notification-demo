@@ -10,5 +10,5 @@ public interface SseEmitterRepository {
 
     Optional<SseEmitter> findByUsername(String username);
 
-    void delete(String username);
+    void deleteByUsername(String username);
 }
