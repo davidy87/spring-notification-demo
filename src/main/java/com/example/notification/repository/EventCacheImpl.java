@@ -19,8 +19,8 @@ public class EventCacheImpl implements EventCache {
     @Override
     public Map<String, Object> findAllByUsernameAndLessThanTime(String username, Long time) {
         return eventCache.entrySet().stream()
-                .filter(event -> event.getKey().startsWith(username)
-                        && event.getKey().compareTo(username + "-" + time) < 0)
+                .filter(event -> event.getKey().startsWith(username))
+                .filter(event -> event.getKey().compareTo(username + "-" + time) < 0)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 

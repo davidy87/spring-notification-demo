@@ -2,6 +2,7 @@ package com.example.notification.service;
 
 import com.example.notification.repository.EventCache;
 import com.example.notification.repository.SseEmitterRepository;
+import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,7 @@ public class NotificationService {
 
     private final EventCache eventCache;
 
-    public SseEmitter subscribe(String username) {
+    public SseEmitter subscribe(String username, String lastEventId) {
         log.info("subscriber = {}", username);
         SseEmitter sseEmitter = sseEmitterRepository.save(username, new SseEmitter(TIMEOUT));
 
@@ -44,7 +45,10 @@ public class NotificationService {
         });
 
         notifyDummy(sseEmitter, username);  // 503 Error 방지를 위한 Dummy notification 전송
-        notifyOmittedEvents(username);      // 알림 전송이 누락된 이벤트들이 있을 경우, 다시 전송
+
+        if (!StringUtils.isEmpty(lastEventId)) {
+            notifyOmittedEvents(sseEmitter, username);  // 알림 전송이 누락된 이벤트들이 있을 경우, 다시 전송
+        }
 
         return sseEmitter;
     }
@@ -64,10 +68,10 @@ public class NotificationService {
     /**
      * 알림 전송이 누락된 이벤트들을 조회한 후, 재전송하기 위해 호출하는 메서드
      */
-    private void notifyOmittedEvents(String username) {
+    private void notifyOmittedEvents(SseEmitter sseEmitter, String username) {
         eventCache.findAllByUsernameAndLessThanTime(username, System.currentTimeMillis())
                 .forEach((eventId, data) -> {
-                    notifyEvent(username, data);
+                    notify(sseEmitter, eventId, "event", data);
                     eventCache.deleteByEventId(eventId);
                 });
     }
