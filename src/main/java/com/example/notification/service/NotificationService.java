@@ -63,6 +63,7 @@ public class NotificationService {
         String eventId = username + "-" + System.currentTimeMillis();
         eventCache.save(eventId, data); // 알림 전송 누락을 대비한 이벤트 저장
         notify(sseEmitter, eventId, "event", data);
+        sseEmitter.complete();
     }
 
     /**
