@@ -3,14 +3,17 @@ package com.example.notification.service;
 import com.example.notification.repository.EventCache;
 import com.example.notification.repository.SseEmitterRepository;
 import com.example.notification.util.EventIdUtils;
-import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.Duration;
+
+import static com.example.notification.service.EventType.EVENT;
+import static com.example.notification.service.EventType.SUBSCRIPTION;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -40,13 +43,14 @@ public class NotificationService {
 
         sseEmitter.onError((e) -> {
             log.info("SSE error: subscriber = {}", username);
+            log.info("error ", e);
             sseEmitter.complete();
         });
 
-        notifyDummy(sseEmitter, username);  // 503 Error 방지를 위한 Dummy notification 전송
-
-        if (!StringUtils.isEmpty(lastEventId)) {
+        if (StringUtils.hasText(lastEventId)) {
             notifyOmittedEvents(sseEmitter, username);  // 알림 전송이 누락된 이벤트들이 있을 경우, 다시 전송
+        } else {
+            notifyDummy(sseEmitter, username);  // 503 Error 방지를 위한 Dummy notification 전송
         }
 
         return sseEmitter;
@@ -57,11 +61,11 @@ public class NotificationService {
      */
     public void notifyEvent(String username, Object data) {
         SseEmitter sseEmitter = sseEmitterRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("SSE connection is not established."));
+                .orElseThrow(() -> new RuntimeException("SSE connection for user [" + username + "] is not established."));
 
         String eventId = EventIdUtils.generateEventId(username);
         eventCache.save(eventId, data); // 알림 전송 누락을 대비한 이벤트 저장
-        notify(sseEmitter, eventId, "event", data);
+        notify(sseEmitter, eventId, EVENT.getEventName(), data);
         sseEmitter.complete();
     }
 
@@ -71,7 +75,7 @@ public class NotificationService {
     private void notifyOmittedEvents(SseEmitter sseEmitter, String username) {
         eventCache.findAllOmittedEventsByUsername(username)
                 .forEach((eventId, data) -> {
-                    notify(sseEmitter, eventId, "event", data);
+                    notify(sseEmitter, eventId, EVENT.getEventName(), data);
                     eventCache.deleteByEventId(eventId);
                 });
     }
@@ -80,7 +84,7 @@ public class NotificationService {
      * 첫 SSE 연결 후, 더미 데이터를 보내기 위해 호출하는 메서드
      */
     private void notifyDummy(SseEmitter sseEmitter, String username) {
-        notify(sseEmitter, "", "SSE Connection", "SSE connected. Connected user = " + username);
+        notify(sseEmitter, "", SUBSCRIPTION.getEventName(), "SSE connected. Connected user = " + username);
     }
 
     private void notify(SseEmitter sseEmitter, String eventId, String eventName, Object data) {
