@@ -1,5 +1,6 @@
 package com.example.notification.repository;
 
+import com.example.notification.util.EventIdUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.Map;
@@ -17,10 +18,10 @@ public class EventCacheImpl implements EventCache {
     }
 
     @Override
-    public Map<String, Object> findAllByUsernameAndLessThanTime(String username, Long time) {
+    public Map<String, Object> findAllOmittedEventsByUsername(String username) {
         return eventCache.entrySet().stream()
                 .filter(event -> event.getKey().startsWith(username))
-                .filter(event -> event.getKey().compareTo(username + "-" + time) < 0)
+                .filter(event -> event.getKey().compareTo(EventIdUtils.generateEventId(username)) < 0)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
