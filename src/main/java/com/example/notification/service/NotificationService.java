@@ -2,6 +2,7 @@ package com.example.notification.service;
 
 import com.example.notification.repository.EventCache;
 import com.example.notification.repository.SseEmitterRepository;
+import com.example.notification.util.EventIdUtils;
 import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,13 +35,11 @@ public class NotificationService {
 
         sseEmitter.onTimeout(() -> {
             log.info("SSE timed out: subscriber = {}", username);
-            sseEmitterRepository.deleteByUsername(username);
             sseEmitter.complete();
         });
 
         sseEmitter.onError((e) -> {
             log.info("SSE error: subscriber = {}", username);
-            sseEmitterRepository.deleteByUsername(username);
             sseEmitter.complete();
         });
 
@@ -60,7 +59,7 @@ public class NotificationService {
         SseEmitter sseEmitter = sseEmitterRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("SSE connection is not established."));
 
-        String eventId = username + "-" + System.currentTimeMillis();
+        String eventId = EventIdUtils.generateEventId(username);
         eventCache.save(eventId, data); // 알림 전송 누락을 대비한 이벤트 저장
         notify(sseEmitter, eventId, "event", data);
         sseEmitter.complete();
@@ -70,7 +69,7 @@ public class NotificationService {
      * 알림 전송이 누락된 이벤트들을 조회한 후, 재전송하기 위해 호출하는 메서드
      */
     private void notifyOmittedEvents(SseEmitter sseEmitter, String username) {
-        eventCache.findAllByUsernameAndLessThanTime(username, System.currentTimeMillis())
+        eventCache.findAllOmittedEventsByUsername(username)
                 .forEach((eventId, data) -> {
                     notify(sseEmitter, eventId, "event", data);
                     eventCache.deleteByEventId(eventId);
@@ -92,7 +91,7 @@ public class NotificationService {
                     .data(data));
         } catch (IOException e) {
             log.info("Exception occurred while sending notification.");
-            String username = eventId.split("-")[0];
+            String username = EventIdUtils.parseUsernameFromEventId(eventId);
             sseEmitterRepository.deleteByUsername(username);
             throw new RuntimeException(e);
         }

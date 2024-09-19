@@ -6,7 +6,7 @@ public interface EventCache {
 
     void save(String eventId, Object eventData);
 
-    Map<String, Object> findAllByUsernameAndLessThanTime(String username, Long time);
+    Map<String, Object> findAllOmittedEventsByUsername(String username);
 
     void deleteByEventId(String eventId);
 }
